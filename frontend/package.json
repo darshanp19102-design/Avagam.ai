@@ -1,0 +1,10 @@
+{
+  "name": "avagama-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node server.mjs",
+    "build": "node -e \"console.log('No build step required')\""
+  }
+}

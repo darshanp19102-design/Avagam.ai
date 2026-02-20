@@ -1,0 +1,35 @@
+from datetime import datetime, timedelta, timezone
+
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+
+from app.core.config import settings
+
+pwd_context = CryptContext(schemes=['pbkdf2_sha256'], deprecated='auto')
+
+
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
+
+def create_access_token(subject: str) -> str:
+    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
+    payload = {'sub': subject, 'exp': expire, 'type': 'access'}
+    return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+
+def create_email_verification_token(subject: str) -> str:
+    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.EMAIL_VERIFY_EXPIRE_MINUTES)
+    payload = {'sub': subject, 'exp': expire, 'type': 'verify_email'}
+    return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+
+def decode_token(token: str) -> dict | None:
+    try:
+        return jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+    except JWTError:
+        return None
