@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -6,8 +8,16 @@ from app.api.dashboard import router as dashboard_router
 from app.api.evaluations import router as evaluations_router
 from app.api.use_cases import router as use_cases_router
 from app.core.config import settings
+from app.db.mongo import init_db
 
-app = FastAPI(title='Avagama.ai API', version='1.0.0')
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    await init_db()
+    yield
+
+
+app = FastAPI(title='Avagama.ai API', version='1.0.0', lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

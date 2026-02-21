@@ -1,6 +1,8 @@
+import json
 from datetime import datetime, timezone
 
 from bson import ObjectId
+from bson.errors import InvalidId
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps import get_current_user
@@ -14,7 +16,24 @@ router = APIRouter(prefix='/api/evaluations', tags=['evaluations'])
 
 def extract_content(agent_json: dict):
     try:
-        return agent_json['choices'][0]['message']['content']
+        content = agent_json['choices'][0]['message']['content']
+        if isinstance(content, str):
+            text = content.strip()
+            if text.startswith('```'):
+                text = text.split('\n', 1)[1] if '\n' in text else text
+                if text.endswith('```'):
+                    text = text[:-3]
+                text = text.strip()
+            try:
+                parsed = json.loads(text)
+                if isinstance(parsed, dict):
+                    if 'process_characteristics' not in parsed and isinstance(parsed.get('dimensions'), dict):
+                        parsed['process_characteristics'] = parsed['dimensions']
+                    return parsed
+                return {'raw_text': content}
+            except json.JSONDecodeError:
+                return {'raw_text': content}
+        return content
     except Exception:
         return None
 
@@ -33,8 +52,16 @@ async def submit_evaluation(payload: EvaluationCreate, current_user=Depends(get_
         f"decision_points: {payload.decision_points}"
     )
 
-    agent_response = await call_agent(settings.PROCESS_AGENT_ID, formatted)
-    content = extract_content(agent_response)
+    agent_response = None
+    content = None
+    status_text = 'Completed'
+    agent_error = None
+    try:
+        agent_response = await call_agent(settings.PROCESS_AGENT_ID, formatted)
+        content = extract_content(agent_response)
+    except HTTPException as exc:
+        status_text = 'Failed'
+        agent_error = {'status_code': exc.status_code, 'detail': exc.detail}
 
     doc = {
         'user_id': current_user['id'],
@@ -43,7 +70,8 @@ async def submit_evaluation(payload: EvaluationCreate, current_user=Depends(get_
         'formatted_message': formatted,
         'agent_response': agent_response,
         'parsed_content': content,
-        'status': 'Completed',
+        'agent_error': agent_error,
+        'status': status_text,
         'created_at': datetime.now(timezone.utc),
     }
     result = await collection('evaluations').insert_one(doc)
@@ -56,15 +84,15 @@ async def my_evaluations(current_user=Depends(get_current_user)):
     cursor = collection('evaluations').find({'user_id': current_user['id']}).sort('created_at', -1)
     rows = []
     async for item in cursor:
-        content = item.get('parsed_content') or {}
+        content = item.get('parsed_content') if isinstance(item.get('parsed_content'), dict) else {}
         rows.append(
             {
                 'id': str(item['_id']),
                 'process_name': item.get('process_name'),
                 'created_at': item.get('created_at'),
-                'automation_score': content.get('automation_feasibility_score') if isinstance(content, dict) else None,
-                'feasibility_score': content.get('business_benefit_score') if isinstance(content, dict) else None,
-                'fitment': content.get('fitment') if isinstance(content, dict) else None,
+                'automation_score': content.get('automation_feasibility_score'),
+                'feasibility_score': content.get('business_benefit_score'),
+                'fitment': content.get('fitment'),
                 'status': item.get('status', 'Completed'),
             }
         )
@@ -73,7 +101,12 @@ async def my_evaluations(current_user=Depends(get_current_user)):
 
 @router.get('/{evaluation_id}')
 async def get_evaluation(evaluation_id: str, current_user=Depends(get_current_user)):
-    item = await collection('evaluations').find_one({'_id': ObjectId(evaluation_id), 'user_id': current_user['id']})
+    try:
+        oid = ObjectId(evaluation_id)
+    except InvalidId as exc:
+        raise HTTPException(status_code=400, detail='Invalid evaluation id') from exc
+
+    item = await collection('evaluations').find_one({'_id': oid, 'user_id': current_user['id']})
     if not item:
         raise HTTPException(status_code=404, detail='Evaluation not found')
     item['id'] = str(item.pop('_id'))

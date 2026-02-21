@@ -4,7 +4,7 @@ from fastapi import HTTPException
 from app.core.config import settings
 
 
-async def call_agent(agent_id: str, content: str) -> dict:
+async def call_agent(agent_id: str, content: str, timeout_seconds: float = 300.0) -> dict:
     payload = {
         'agent_id': agent_id,
         'messages': [
@@ -19,7 +19,7 @@ async def call_agent(agent_id: str, content: str) -> dict:
         'Content-Type': 'application/json',
     }
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=timeout_seconds) as client:
             response = await client.post(settings.MISTRAL_API_URL, headers=headers, json=payload)
         response.raise_for_status()
         return response.json()

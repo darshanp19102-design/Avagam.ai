@@ -1,11 +1,11 @@
 # Avagama.ai
 
-Production-ready full stack app with FastAPI + React for AI process evaluation.
+Full-stack Avagama.ai application with FastAPI + Motor + JWT backend and a production-style SPA frontend.
 
 ## Folder Structure
 
-- `backend/` FastAPI backend (Python 3.11, Motor, JWT, Mistral integration)
-- `frontend/` React + Vite frontend
+- `backend/` FastAPI backend (async APIs, JWT auth, Motor data layer, Mistral agent integration)
+- `frontend/` frontend SPA and lightweight Node static server
 
 ## Run Instructions
 
@@ -13,7 +13,7 @@ Production-ready full stack app with FastAPI + React for AI process evaluation.
 
 ```bash
 cd backend
-python3.11 -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
@@ -32,5 +32,5 @@ Backend: http://localhost:8000
 
 ## Environment Files
 
-- `backend/.env` contains MongoDB Atlas, JWT, and Mistral settings.
-- `frontend/.env` contains `VITE_API_URL`.
+- `backend/.env` stores MongoDB, JWT, and Mistral settings.
+- `frontend/.env` stores `VITE_API_URL`.
