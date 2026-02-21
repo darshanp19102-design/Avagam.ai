@@ -14,6 +14,31 @@ from app.services.mistral import call_agent
 router = APIRouter(prefix='/api/evaluations', tags=['evaluations'])
 
 
+def fallback_content(payload: EvaluationCreate) -> dict:
+    return {
+        'automation_feasibility_score': 70,
+        'business_benefit_score': {'score': 65},
+        'fitment': 'Agentic AI',
+        'dimensions': {
+            'knowledge_intensity': 'Medium',
+            'decision_intensity': 'High',
+            'data_structure': 'Structured',
+            'context_awareness': 'Medium',
+            'exception_handling': max(0, min(100, int(payload.exception_rate))),
+            'orchestration_complexity': 'Medium',
+            'process_volume': 'Medium',
+            'process_frequency': 'High' if 'daily' in payload.frequency.lower() else 'Medium',
+            'risk_tolerance': payload.risk_tolerance or 'Medium',
+            'compliance_sensitivity': payload.compliance_sensitivity or 'Medium',
+        },
+        'recommendations': {
+            'llm_recommendation': 'small_LLM',
+            'top_point_solutions': ['SAP Ariba', 'Coupa', 'Ivalua'],
+            'top_models': ['Mistral 7B', 'Llama 2 13B', 'Gemma 7B'],
+        },
+    }
+
+
 def extract_content(agent_json: dict):
     try:
         content = agent_json['choices'][0]['message']['content']
@@ -59,9 +84,10 @@ async def submit_evaluation(payload: EvaluationCreate, current_user=Depends(get_
     try:
         agent_response = await call_agent(settings.PROCESS_AGENT_ID, formatted)
         content = extract_content(agent_response)
-    except HTTPException as exc:
-        status_text = 'Failed'
-        agent_error = {'status_code': exc.status_code, 'detail': exc.detail}
+    except Exception as exc:
+        status_text = 'Fallback'
+        agent_error = {'detail': str(exc)}
+        content = fallback_content(payload)
 
     doc = {
         'user_id': current_user['id'],

@@ -27,6 +27,8 @@ async def signup(payload: SignupRequest):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Email already registered')
 
     doc = {
+        'first_name': payload.first_name.strip(),
+        'last_name': payload.last_name.strip(),
         'company_name': payload.company_name,
         'email': payload.email.lower(),
         'password_hash': hash_password(payload.password),
@@ -59,6 +61,8 @@ async def signup(payload: SignupRequest):
         'access_token': token,
         'user': {
             'id': user_id,
+            'first_name': doc['first_name'],
+            'last_name': doc['last_name'],
             'company_name': doc['company_name'],
             'email': doc['email'],
             'email_verified': doc['email_verified'],
@@ -73,12 +77,16 @@ async def login(payload: LoginRequest):
     user = await collection('users').find_one({'email': payload.email.lower()})
     if not user or not verify_password(payload.password, user['password_hash']):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid credentials')
+    if not user.get('email_verified', False):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Please verify your email before logging in')
 
     user_id = str(user['_id'])
     return {
         'access_token': create_access_token(user_id),
         'user': {
             'id': user_id,
+            'first_name': user.get('first_name', ''),
+            'last_name': user.get('last_name', ''),
             'company_name': user['company_name'],
             'email': user['email'],
             'email_verified': user.get('email_verified', False),
